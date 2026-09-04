@@ -1,0 +1,49 @@
+# 每日数据更新 + 部署到 GitHub Pages
+name: 每日数据更新与部署
+
+on:
+  schedule:
+    - cron: "30 17 * * *"          # 北京时间约 01:30，盘后全量数据已齐
+  workflow_dispatch: {}            # 允许手动触发
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/**"
+      - "site/**"
+      - "README.md"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r pipeline/requirements.txt
+      - run: python3 pipeline/run_daily.py --mode akshare
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build-data
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
